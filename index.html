@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lunar Surface Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/openlayers/7.5.2/ol.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openlayers/7.5.2/dist/ol.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 1000;
+            max-width: 250px;
+        }
+        .info-panel h3 {
+            margin-top: 0;
+            font-size: 16px;
+        }
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .layer-control {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        .layer-control label {
+            display: block;
+            margin: 5px 0;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .popup {
+            position: absolute;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            min-width: 200px;
+            display: none;
+            z-index: 2000;
+        }
+        .popup h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .popup p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .popup-closer {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+        }
+        .popup-closer:hover {
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="layer-control">
+        <label>
+            <input type="checkbox" id="toggleGPS" checked> GPS Coverage (24hr)
+        </label>
+    </div>
+    
+    <div class="info-panel">
+        <h3>Lunar Surface Map</h3>
+        <p><strong>Projection:</strong> EPSG:18000</p>
+        <p><strong>Basemap:</strong> LDEM_4</p>
+        <p><strong>Overlay:</strong> GPS Coverage (24hr)</p>
+        <p id="coordinates"></p>
+    </div>
+
+    <div id="popup" class="popup">
+        <span class="popup-closer" id="popup-closer">&times;</span>
+        <div id="popup-content"></div>
+    </div>
+
+    <script>
+        // Define the Moon projection (EPSG:18000)
+        proj4.defs('EPSG:18000', '+proj=longlat +a=1737400 +b=1737400 +no_defs');
+        ol.proj.proj4.register(proj4);
+
+        // Get the projection
+        const moonProjection = ol.proj.get('EPSG:18000');
+        
+        // Set the extent for the Moon (full sphere in degrees)
+        const moonExtent = [-180, -90, 180, 90];
+        moonProjection.setExtent(moonExtent);
+
+        // Create the WMS layer for your lunar basemap
+        const lunarBasemap = new ol.layer.Tile({
+            source: new ol.source.TileWMS({
+                url: 'http://localhost:8080/geoserver/ne/wms',
+                params: {
+                    'LAYERS': 'ne:LDEM_4',
+                    'TILED': true,
+                    'VERSION': '1.1.0'
+                },
+                serverType: 'geoserver',
+                projection: 'EPSG:18000'
+            })
+        });
+
+        // Create the GPS coverage overlay layer
+        const gpsCoverage = new ol.layer.Tile({
+            source: new ol.source.TileWMS({
+                url: 'http://localhost:8080/geoserver/ne/wms',
+                params: {
+                    'LAYERS': 'ne:Coverage',
+                    'TILED': true,
+                    'VERSION': '1.1.0',
+                    'TRANSPARENT': true
+                },
+                serverType: 'geoserver',
+                projection: 'EPSG:18000'
+            })
+        });
+
+        // Create the map
+        const map = new ol.Map({
+            target: 'map',
+            layers: [lunarBasemap, gpsCoverage],
+            view: new ol.View({
+                projection: moonProjection,
+                center: [0, 0],
+                zoom: 2,
+                maxZoom: 10,
+                minZoom: 1,
+                extent: moonExtent,
+                constrainOnlyCenter: false
+            })
+        });
+
+        // Display mouse coordinates
+        map.on('pointermove', function(evt) {
+            const coordinate = evt.coordinate;
+            const lon = coordinate[0].toFixed(2);
+            const lat = coordinate[1].toFixed(2);
+            document.getElementById('coordinates').innerHTML = 
+                '<strong>Coordinates:</strong><br>Lon: ' + lon + '°<br>Lat: ' + lat + '°';
+        });
+
+        // Layer toggle functionality
+        document.getElementById('toggleGPS').addEventListener('change', function(e) {
+            gpsCoverage.setVisible(e.target.checked);
+        });
+
+        // Popup functionality
+        const popup = document.getElementById('popup');
+        const popupContent = document.getElementById('popup-content');
+        const popupCloser = document.getElementById('popup-closer');
+
+        popupCloser.onclick = function() {
+            popup.style.display = 'none';
+        };
+
+        // Click to get feature info
+        map.on('singleclick', function(evt) {
+            const viewResolution = map.getView().getResolution();
+            const url = gpsCoverage.getSource().getFeatureInfoUrl(
+                evt.coordinate,
+                viewResolution,
+                'EPSG:18000',
+                {'INFO_FORMAT': 'application/json'}
+            );
+
+            if (url) {
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.features && data.features.length > 0) {
+                            const properties = data.features[0].properties;
+                            const lon = evt.coordinate[0].toFixed(4);
+                            const lat = evt.coordinate[1].toFixed(4);
+                            
+                            // Get coverage value (assuming it's in the GRAY_INDEX or similar property)
+                            const coverageSeconds = properties.GRAY_INDEX || properties.value || 0;
+                            const coverageHours = (coverageSeconds / 3600).toFixed(2);
+                            
+                            popupContent.innerHTML = `
+                                <h4>Location Statistics</h4>
+                                <p><strong>Longitude:</strong> ${lon}°</p>
+                                <p><strong>Latitude:</strong> ${lat}°</p>
+                                <p><strong>Coverage:</strong> ${coverageSeconds} seconds</p>
+                                <p><strong>Duration:</strong> ${coverageHours} hours</p>
+                            `;
+                            
+                            // Position popup at click location
+                            const pixel = map.getPixelFromCoordinate(evt.coordinate);
+                            popup.style.left = pixel[0] + 10 + 'px';
+                            popup.style.top = pixel[1] + 10 + 'px';
+                            popup.style.display = 'block';
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error fetching feature info:', err);
+                    });
+            }
+        });
+
+        // Add zoom controls
+        map.addControl(new ol.control.Zoom());
+        
+        // Add scale line
+        map.addControl(new ol.control.ScaleLine());
+    </script>
+</body>
+</html>
