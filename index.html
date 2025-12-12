@@ -3,104 +3,429 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lunar Surface Map</title>
+    <title>Lunar GNSS Coverage Analysis</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/openlayers/7.5.2/ol.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/openlayers/7.5.2/dist/ol.js"></script>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            box-sizing: border-box;
         }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
         #map {
             width: 100%;
             height: 100vh;
         }
-        .info-panel {
+        
+        .header {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.7));
+            padding: 20px;
             z-index: 1000;
-            max-width: 250px;
+            backdrop-filter: blur(10px);
         }
-        .info-panel h3 {
-            margin-top: 0;
-            font-size: 16px;
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
         }
-        .info-panel p {
+        
+        .header p {
+            font-size: 14px;
+            color: #aaa;
+        }
+        
+        .constellation-selector {
+            position: absolute;
+            top: 120px;
+            left: 20px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 1000;
+            min-width: 240px;
+        }
+        
+        .constellation-selector h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .constellation-item {
+            margin-bottom: 15px;
+        }
+        
+        .constellation-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 5px;
+            background: rgba(60, 60, 60, 0.8);
+            border: 2px solid transparent;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .constellation-btn:hover {
+            background: rgba(80, 80, 80, 0.9);
+            transform: translateX(5px);
+        }
+        
+        .constellation-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #fff;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .constellation-btn.gps.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .constellation-btn.glonass.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .constellation-btn.galileo.active {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .constellation-btn.beidou.active {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .relay-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(40, 40, 40, 0.6);
+            border-radius: 4px;
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .relay-toggle label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin: 0;
+        }
+        
+        .relay-toggle input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .relay-toggle input[type="checkbox"]:checked + span {
+            color: #43e97b;
+            font-weight: 600;
+        }
+        
+        .time-control {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.95);
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 1000;
+            min-width: 500px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .time-control h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .time-display {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .slider-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        
+        .time-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.5);
+        }
+        
+        .time-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.5);
+        }
+        
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .legend {
+            position: absolute;
+            top: 120px;
+            right: 20px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 1000;
+            min-width: 200px;
+        }
+        
+        .legend h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .legend-gradient {
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(to right, 
+                #0000FF 0%, 
+                #00FFFF 20%, 
+                #00FF00 40%, 
+                #FFFF00 60%, 
+                #FF0000 100%);
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #aaa;
+        }
+        
+        .legend-item {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .legend-item p {
+            font-size: 12px;
+            color: #aaa;
             margin: 5px 0;
+        }
+        
+        .info-display {
+            position: absolute;
+            bottom: 40px;
+            right: 20px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 1000;
+            min-width: 180px;
             font-size: 12px;
         }
-        .layer-control {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            z-index: 1000;
-        }
-        .layer-control label {
-            display: block;
+        
+        .info-display p {
             margin: 5px 0;
-            font-size: 14px;
-            cursor: pointer;
+            color: #aaa;
         }
+        
+        .info-display strong {
+            color: #fff;
+        }
+        
         .popup {
             position: absolute;
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-            min-width: 200px;
+            background: rgba(20, 20, 20, 0.98);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.7);
+            min-width: 250px;
             display: none;
             z-index: 2000;
+            border: 1px solid rgba(102, 126, 234, 0.3);
         }
+        
         .popup h4 {
             margin-top: 0;
-            margin-bottom: 10px;
-            font-size: 14px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 5px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: #667eea;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+            padding-bottom: 10px;
         }
+        
         .popup p {
-            margin: 5px 0;
-            font-size: 12px;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #ccc;
         }
+        
+        .popup strong {
+            color: #fff;
+        }
+        
         .popup-closer {
             position: absolute;
-            top: 5px;
-            right: 5px;
+            top: 10px;
+            right: 15px;
             cursor: pointer;
-            font-size: 18px;
-            color: #666;
+            font-size: 20px;
+            color: #888;
+            font-weight: bold;
         }
+        
         .popup-closer:hover {
-            color: #000;
+            color: #fff;
         }
     </style>
 </head>
 <body>
-    <div id="map"></div>
-    
-    <div class="layer-control">
-        <label>
-            <input type="checkbox" id="toggleGPS" checked> GPS Coverage (24hr)
-        </label>
+    <div class="header">
+        <h1>Lunar GNSS Coverage Analysis</h1>
+        <p>28-Day Satellite Constellation Coverage Visualization (April 8 - May 5, 2025) | ESRI:103878 Moon 2000</p>
     </div>
     
-    <div class="info-panel">
-        <h3>Lunar Surface Map</h3>
-        <p><strong>Projection:</strong> EPSG:18000</p>
-        <p><strong>Basemap:</strong> LDEM_4</p>
-        <p><strong>Overlay:</strong> GPS Coverage (24hr)</p>
-        <p id="coordinates"></p>
+    <div id="map"></div>
+    
+    <div class="constellation-selector">
+        <h3>Constellation</h3>
+        
+        <div class="constellation-item">
+            <button class="constellation-btn beidou active" data-constellation="beidou">BeiDou</button>
+            <div class="relay-toggle">
+                <label>
+                    <input type="checkbox" class="relay-checkbox" data-constellation="beidou">
+                    <span>Relay Enhanced</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="constellation-item">
+            <button class="constellation-btn galileo" data-constellation="galileo">Galileo</button>
+            <div class="relay-toggle">
+                <label>
+                    <input type="checkbox" class="relay-checkbox" data-constellation="galileo">
+                    <span>Relay Enhanced</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="constellation-item">
+            <button class="constellation-btn glonass" data-constellation="glonass">GLONASS</button>
+            <div class="relay-toggle">
+                <label>
+                    <input type="checkbox" class="relay-checkbox" data-constellation="glonass">
+                    <span>Relay Enhanced</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="constellation-item">
+            <button class="constellation-btn gps" data-constellation="gps">GPS</button>
+            <div class="relay-toggle">
+                <label>
+                    <input type="checkbox" class="relay-checkbox" data-constellation="gps">
+                    <span>Relay Enhanced</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <div class="time-control">
+        <div class="time-display" id="time-display">April 8, 2025</div>
+        <div class="slider-container">
+            <input type="range" min="0" max="27" value="0" class="time-slider" id="time-slider">
+            <div class="time-labels">
+                <span>Apr 8</span>
+                <span>Apr 15</span>
+                <span>Apr 22</span>
+                <span>Apr 29</span>
+                <span>May 5</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="legend">
+        <h3>Coverage Duration</h3>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span>0h</span>
+            <span>6h</span>
+            <span>12h</span>
+            <span>18h</span>
+            <span>24h</span>
+        </div>
+        <div class="legend-item">
+            <p><strong>Click</strong> on map for statistics</p>
+            <p><strong>Projection:</strong> ESRI:103878 Moon 2000</p>
+        </div>
+    </div>
+    
+    <div class="info-display">
+        <p><strong>Active:</strong> <span id="active-constellation">BeiDou</span></p>
+        <p><strong>Date:</strong> <span id="active-time">Apr 8</span></p>
+        <p id="coordinates">Lon: 0.00° | Lat: 0.00°</p>
     </div>
 
     <div id="popup" class="popup">
@@ -109,73 +434,187 @@
     </div>
 
     <script>
-        // Define the Moon projection (EPSG:18000)
+        // Define the Moon projection (EPSG:18000 - used internally, displayed as ESRI:103878)
         proj4.defs('EPSG:18000', '+proj=longlat +a=1737400 +b=1737400 +no_defs');
         ol.proj.proj4.register(proj4);
 
-        // Get the projection
         const moonProjection = ol.proj.get('EPSG:18000');
-        
-        // Set the extent for the Moon (full sphere in degrees)
         const moonExtent = [-180, -90, 180, 90];
         moonProjection.setExtent(moonExtent);
 
-        // Create the WMS layer for your lunar basemap
+        // Automatically detect the base URL (works with any IP/domain)
+        const protocol = window.location.protocol;
+        const host = window.location.hostname;
+        const port = window.location.port || '8080'; // Use current port, fallback to 8080
+        const geoserverBase = `${protocol}//${host}:${port}/geoserver`;
+
+        // Create the lunar basemap
         const lunarBasemap = new ol.layer.Tile({
             source: new ol.source.TileWMS({
-                url: 'http://localhost:8080/geoserver/ne/wms',
+                url: `${geoserverBase}/lunar/wms`,
                 params: {
                     'LAYERS': 'ne:LDEM_4',
                     'TILED': true,
-                    'VERSION': '1.1.0'
+                    'VERSION': '1.1.0',
+                    'SRS': 'EPSG:18000'
                 },
                 serverType: 'geoserver',
                 projection: 'EPSG:18000'
             })
         });
+        
+        console.log('Basemap layer created');
 
-        // Create the GPS coverage overlay layer
+        // Create the GPS coverage overlay
         const gpsCoverage = new ol.layer.Tile({
             source: new ol.source.TileWMS({
-                url: 'http://localhost:8080/geoserver/ne/wms',
+                url: `${geoserverBase}/lunar/wms`,
                 params: {
                     'LAYERS': 'ne:Coverage',
                     'TILED': true,
                     'VERSION': '1.1.0',
-                    'TRANSPARENT': true
+                    'TRANSPARENT': true,
+                    'SRS': 'EPSG:18000'
                 },
                 serverType: 'geoserver',
                 projection: 'EPSG:18000'
+            })
+        });
+        
+        console.log('Coverage layer created');
+
+        // Create a vector layer for the click marker
+        const markerSource = new ol.source.Vector();
+        const markerLayer = new ol.layer.Vector({
+            source: markerSource,
+            style: new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 8,
+                    fill: new ol.style.Fill({
+                        color: 'rgba(102, 126, 234, 0.8)'
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: '#ffffff',
+                        width: 2
+                    })
+                })
             })
         });
 
         // Create the map
         const map = new ol.Map({
             target: 'map',
-            layers: [lunarBasemap, gpsCoverage],
+            layers: [lunarBasemap, gpsCoverage, markerLayer],
             view: new ol.View({
                 projection: moonProjection,
                 center: [0, 0],
-                zoom: 2,
-                maxZoom: 10,
-                minZoom: 1,
+                zoom: 1,
+                maxZoom: 6,
+                minZoom: 0,
                 extent: moonExtent,
                 constrainOnlyCenter: false
             })
         });
 
-        // Display mouse coordinates
+        // State management
+        let currentConstellation = 'beidou';
+        let currentDay = 0; // Day 0 (April 8)
+        let relayEnabled = {
+            beidou: false,
+            galileo: false,
+            glonass: false,
+            gps: false
+        };
+        const startDate = new Date(2025, 3, 8); // April 8, 2025 (month is 0-indexed)
+
+        function getDayString(dayOffset) {
+            const date = new Date(startDate);
+            date.setDate(date.getDate() + dayOffset);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        }
+
+        function getShortDayString(dayOffset) {
+            const date = new Date(startDate);
+            date.setDate(date.getDate() + dayOffset);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getDate()}`;
+        }
+
+        function updateCoverageLayer() {
+            // Build layer name based on constellation and relay status
+            const constellationMap = {
+                'beidou': 'BeiDou',
+                'galileo': 'Galileo',
+                'glonass': 'GLONASS',
+                'gps': 'GPS'
+            };
+            
+            const constName = constellationMap[currentConstellation];
+            const relayPrefix = relayEnabled[currentConstellation] ? '_R' : '';
+            currentLayerName = `lunar:${constName}${relayPrefix}_8_Apr`;
+            
+            // Update the layer source
+            gpsCoverage.getSource().updateParams({
+                'LAYERS': currentLayerName
+            });
+            
+            console.log('Updated coverage layer to:', currentLayerName);
+        }
+
+        // Constellation selector
+        document.querySelectorAll('.constellation-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.constellation-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentConstellation = this.dataset.constellation;
+                updateCoverageLayer();
+                updateDisplay();
+                console.log('Selected constellation:', currentConstellation, 'Relay:', relayEnabled[currentConstellation]);
+            });
+        });
+
+        // Relay toggle checkboxes
+        document.querySelectorAll('.relay-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const constellation = this.dataset.constellation;
+                relayEnabled[constellation] = this.checked;
+                
+                // If this is the active constellation, update the layer
+                if (constellation === currentConstellation) {
+                    updateCoverageLayer();
+                    updateDisplay();
+                }
+                
+                console.log('Relay for', constellation, ':', this.checked);
+            });
+        });
+
+        function updateDisplay() {
+            const relayStatus = relayEnabled[currentConstellation] ? ' + Relay' : '';
+            const constellationName = currentConstellation.charAt(0).toUpperCase() + currentConstellation.slice(1).toUpperCase();
+            document.getElementById('active-constellation').textContent = constellationName + relayStatus;
+        }
+
+        // Time slider
+        const timeSlider = document.getElementById('time-slider');
+        const timeDisplay = document.getElementById('time-display');
+        
+        timeSlider.addEventListener('input', function() {
+            currentDay = parseInt(this.value);
+            const dateString = getDayString(currentDay);
+            timeDisplay.textContent = dateString;
+            document.getElementById('active-time').textContent = getShortDayString(currentDay);
+            // In real implementation, this would load different day layer
+            console.log('Selected day:', currentDay, dateString);
+        });
+
+        // Mouse coordinates
         map.on('pointermove', function(evt) {
             const coordinate = evt.coordinate;
             const lon = coordinate[0].toFixed(2);
             const lat = coordinate[1].toFixed(2);
-            document.getElementById('coordinates').innerHTML = 
-                '<strong>Coordinates:</strong><br>Lon: ' + lon + '°<br>Lat: ' + lat + '°';
-        });
-
-        // Layer toggle functionality
-        document.getElementById('toggleGPS').addEventListener('change', function(e) {
-            gpsCoverage.setVisible(e.target.checked);
+            document.getElementById('coordinates').textContent = `Lon: ${lon}° | Lat: ${lat}°`;
         });
 
         // Popup functionality
@@ -185,10 +624,19 @@
 
         popupCloser.onclick = function() {
             popup.style.display = 'none';
+            markerSource.clear(); // Remove marker when closing popup
         };
 
-        // Click to get feature info
         map.on('singleclick', function(evt) {
+            // Clear previous marker
+            markerSource.clear();
+            
+            // Add new marker at click location
+            const marker = new ol.Feature({
+                geometry: new ol.geom.Point(evt.coordinate)
+            });
+            markerSource.addFeature(marker);
+            
             const viewResolution = map.getView().getResolution();
             const url = gpsCoverage.getSource().getFeatureInfoUrl(
                 evt.coordinate,
@@ -199,29 +647,41 @@
 
             if (url) {
                 fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
+                    .then(response => response.text())
+                    .then(text => {
+                        // Try to parse as JSON first
+                        let data;
+                        try {
+                            data = JSON.parse(text);
+                        } catch (e) {
+                            console.error('Response is not JSON, might be XML or error:', text);
+                            return;
+                        }
+                        
                         if (data.features && data.features.length > 0) {
                             const properties = data.features[0].properties;
                             const lon = evt.coordinate[0].toFixed(4);
                             const lat = evt.coordinate[1].toFixed(4);
                             
-                            // Get coverage value (assuming it's in the GRAY_INDEX or similar property)
-                            const coverageSeconds = properties.GRAY_INDEX || properties.value || 0;
+                            const coverageSeconds = properties.GRAY_INDEX || 0;
                             const coverageHours = (coverageSeconds / 3600).toFixed(2);
+                            const coveragePercent = ((coverageSeconds / 86400) * 100).toFixed(1);
+                            
+                            const relayStatus = relayEnabled[currentConstellation] ? ' (Relay Enhanced)' : '';
                             
                             popupContent.innerHTML = `
                                 <h4>Location Statistics</h4>
+                                <p><strong>Constellation:</strong> ${currentConstellation.toUpperCase()}${relayStatus}</p>
+                                <p><strong>Date:</strong> ${getDayString(currentDay)}</p>
                                 <p><strong>Longitude:</strong> ${lon}°</p>
                                 <p><strong>Latitude:</strong> ${lat}°</p>
-                                <p><strong>Coverage:</strong> ${coverageSeconds} seconds</p>
-                                <p><strong>Duration:</strong> ${coverageHours} hours</p>
+                                <p><strong>Coverage:</strong> ${coverageHours} hours (${coveragePercent}%)</p>
+                                <p><strong>Duration:</strong> ${coverageSeconds.toLocaleString()} seconds</p>
                             `;
                             
-                            // Position popup at click location
                             const pixel = map.getPixelFromCoordinate(evt.coordinate);
-                            popup.style.left = pixel[0] + 10 + 'px';
-                            popup.style.top = pixel[1] + 10 + 'px';
+                            popup.style.left = pixel[0] + 15 + 'px';
+                            popup.style.top = pixel[1] + 15 + 'px';
                             popup.style.display = 'block';
                         }
                     })
@@ -231,10 +691,7 @@
             }
         });
 
-        // Add zoom controls
         map.addControl(new ol.control.Zoom());
-        
-        // Add scale line
         map.addControl(new ol.control.ScaleLine());
     </script>
 </body>
